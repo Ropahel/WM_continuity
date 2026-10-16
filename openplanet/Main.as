@@ -35,6 +35,12 @@ void SendTelemetrySafe() {
 }
 
 bool SendTelemetry() {
+
+    // Il manque sans doute les actions du joueurs
+    // Sans compter le fait de savoir si le joeur a finit la map, a reset ou est en
+    // train de rouler
+
+
     // Récupération de la voiture "vue" par le joueur
     CSceneVehicleVisState@ vis = VehicleState::ViewingPlayerState();
     if (vis is null) {

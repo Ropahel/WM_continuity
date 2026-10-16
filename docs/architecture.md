@@ -7,13 +7,13 @@ encodages temporels et positionnels, losses et méthodes d'entraînement.
 ## Flux du modèle
 
 ```text
-séquence passée d'images ──> encodeur visuel ──┐
-                                               ├──> fusion ──> z(t)
-séquence passée de télémétrie ─> encodeur télémétrique ┘          │
-                                                                  ├─> policy ─> a(t)
-                                                                  └─> prédicteur(z(t), a(t))
-                                                                          │
-                                                                       z_hat(t+1)
+séquence passée d'images ──> encodeur visuel         ──┐
+                                                       ├──> fusion ──> z(t)
+séquence passée de télémétrie ─> encodeur télémétrique ┘                │
+                                                                        ├─> policy ─> a(t)
+                                                                        └─> prédicteur(z(t), a(t))
+                                                                                 │
+                                                                            z_hat(t+1)
 ```
 
 Pendant l'entraînement du World Model, un passage de l'encodeur sur la fenêtre
@@ -73,4 +73,31 @@ pas supprimer de champs des enregistrements bruts.
 Chaque dossier d'expérience devra contenir la configuration résolue, les
 références aux données et aux splits, la révision du code si elle est
 disponible, la graine aléatoire, les métriques et les checkpoints. Le format
-final des dossiers et des checkpoints sera défini avec le code d'entraînement.
+des dossiers, la reprise périodique et la commande de sauvegarde manuelle sont
+définis dans [checkpoints.md](./checkpoints.md).
+
+L'encodeur et le prédicteur étant entraînés conjointement, leurs poids sont
+sauvegardés comme un World Model cohérent ; leurs variantes architecturales
+restent identifiées séparément dans le manifeste. Une policy sauvegardée
+référence exactement le checkpoint du WM avec lequel elle a été entraînée.
+
+## État d'exécution et sûreté de commande
+
+Le processus Python maintient un état explicite du cycle de vie du run :
+`UNKNOWN`, `READY`, `RUNNING`, `RESETTING`, `FINISHED` ou `ABORTED`.
+Initialement, début, fin, reset et abandon sont déclenchés explicitement par
+l'utilisateur dans le collecteur. Les événements fiables du plugin pourront
+mettre à jour cet état lorsqu'ils auront été vérifiés.
+
+La présence ou l'absence de l'état de véhicule visible ne suffit pas, à elle
+seule, à distinguer la conduite, le menu, le chargement, l'arrivée et le reset.
+En cas d'état inconnu ou de télémétrie devenue obsolète, le contrôle par la
+policy doit être désactivé et la commande de sortie neutralisée ; une reprise
+nécessite un état de run confirmé. Le détail du journal d'événements prévu
+pour ces transitions est donné dans [data-format.md](./data-format.md).
+
+La lecture des commandes physiques de la manette via Openplanet est une piste
+à vérifier. Elle permettrait de conserver les actions du joueur pour
+l'imitation, mais ne doit pas être présumée disponible. À défaut, il faudra
+enregistrer les actions émises par le contrôleur Python et garder leur source
+identifiée.

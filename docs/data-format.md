@@ -30,6 +30,8 @@ enregistrent, selon le cas :
 - le circuit et le mode s'ils sont connus, la source des commandes, les
   versions du collecteur et du plugin ;
 - les configurations de capture, télémétrie, actions et synchronisation ;
+- l'état d'exécution courant et la provenance des transitions lorsqu'ils sont
+  conservés dans `events.parquet` ;
 - les unités source de chaque mesure et la convention du steering ;
 - la résolution, le mode couleur et la qualité JPEG lorsqu'ils seront fixés.
 
@@ -42,6 +44,7 @@ alignement reposent sur des horodatages monotones locaux.
 <data_root>/
 └── session_<uuid>/
     ├── session.json
+    ├── events.parquet
     ├── run_<uuid>/
     │   ├── run.json
     │   ├── frames.parquet
@@ -72,6 +75,29 @@ Chaque flux a son index croissant (`frame_idx`, `telemetry_idx`,
 omettre cette information ou la stocker comme valeur nulle ; ne pas l'inventer.
 Un timestamp de télémétrie pris à la réception indique l'heure de réception,
 pas nécessairement l'instant exact où le jeu a échantillonné la mesure.
+
+Les transitions d'état et les commandes de cycle de vie sont enregistrées dans
+`events.parquet` à la racine de la session, séparément des mesures périodiques.
+L'état représente ce que le collecteur sait et autorise, pas une preuve que la
+voiture bouge réellement.
+Valeurs prévues : `UNKNOWN` (état non confirmé, plugin déconnecté ou mesures
+périmées), `READY` (jeu connecté et voiture prête, aucun run actif), `RUNNING`,
+`RESETTING`, `FINISHED` et `ABORTED`. Chaque transition conserve son origine :
+`user`, `plugin` ou `timeout`.
+
+Au premier jalon, l'utilisateur confirme explicitement le début, la fin, le
+reset ou l'abandon depuis le collecteur. Un événement du plugin ne remplace ce
+contrôle qu'après vérification de sa fiabilité. Un reset ferme le run courant ;
+après confirmation que la voiture est prête, un nouveau run commence avec un
+nouvel identifiant. Une perte de connexion ou des mesures périmées font passer
+l'état à `UNKNOWN` et ne doivent pas être interprétées automatiquement comme
+une arrivée ou un reset.
+
+Le collecteur n'autorise les sorties de la policy qu'en état `RUNNING` avec
+une télémétrie fraîche. Dans les autres états il désactive l'émission d'actions
+du modèle, neutralise le contrôleur si possible et exige une confirmation
+avant de reprendre. Le seuil de fraîcheur et le mécanisme de neutralisation
+seront configurés avec l'adaptateur de jeu.
 
 ## Fichiers de chaque run
 
@@ -115,8 +141,10 @@ des images :
 Une valeur nulle signifie « indisponible » ou « non fournie » ; ne pas la
 remplacer par zéro. Documenter les unités source dans `run.json` et ne
 convertir vers des unités communes que dans une étape de traitement versionnée.
-Les contrôles rapportés par la télémétrie restent distincts des commandes
-envoyées par le collecteur.
+Si Openplanet peut lire les contrôles physiques, conserver steer, gas et brake
+comme mesures observées dans ce flux, avec la provenance notée dans
+`run.json`. Elles ne sont pas équivalentes aux commandes émises par le
+collecteur.
 
 ### `actions.parquet`
 
@@ -139,6 +167,32 @@ dérivée doit tenir compte de toutes les commandes émises entre deux
 observations ; elle ne doit pas en choisir une arbitrairement s'il y en a
 plusieurs. Ne pas renseigner `t_effective_ns` avec l'heure d'émission sauf si
 le jeu confirme réellement l'application à cet instant.
+
+Les actions de cette table sont celles émises vers le jeu. Si le plugin permet
+de lire la manette physique, ces valeurs observées sont consignées dans la
+télémétrie et ne remplacent pas les actions émises. Cela permet de distinguer
+les cibles d'imitation des commandes réellement produites par la policy. Si la
+lecture des entrées physiques n'est pas disponible, enregistrer au minimum
+les actions envoyées par le collecteur avec leur `source`.
+
+### `events.parquet`
+
+Une ligne par transition d'état de run ou commande de cycle de vie pour toute
+la session, pas une ligne par image :
+
+| Champ | Type | Signification |
+|---|---|---|
+| `run_id` | string nullable | UUID du run concerné ; nul avant son démarrage |
+| `event_idx` | int64 | Index local d'événement croissant |
+| `t_event_ns` | int64 | Horodatage monotone local de l'événement |
+| `event_type` | string | Par exemple `run_started`, `run_finished`, `reset_requested`, `reset_completed`, `run_aborted`, `state_unknown` |
+| `state` | string | État après transition : `UNKNOWN`, `READY`, `RUNNING`, `RESETTING`, `FINISHED` ou `ABORTED` |
+| `source` | string | `user`, `plugin` ou `timeout` |
+| `details_json` | nullable string | Détails optionnels sérialisés en JSON |
+
+`run.json` conserve aussi l'état final et la raison de fermeture. Le journal
+d'événements permet de reconstruire les transitions et leur origine ; il
+n'infère pas une arrivée depuis une vitesse nulle ou une absence d'image.
 
 ## Synchronisation et fenêtres d'entraînement
 

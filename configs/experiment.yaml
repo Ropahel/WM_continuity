@@ -17,3 +17,12 @@ training:
 losses:
   # Les termes et poids seront ajoutés avec la première baseline du WM.
   terms: {}
+
+checkpointing:
+  # Cadence exprimée en étapes, pas en époques. À définir avec la boucle
+  # d'entraînement ; null désactive pour le moment les sauvegardes périodiques.
+  every_n_steps: null
+  keep_periodic: null
+  save_on_exit: true
+  manual_command: "save_model"
+  model_library_root: "./runs/model_library"
