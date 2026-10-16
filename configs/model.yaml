@@ -1,0 +1,25 @@
+# Les variantes restent à définir ; elles seront enregistrées et sélectionnées
+# ici une fois leurs interfaces établies.
+encoder:
+  name: "not-configured"
+  params: {}
+
+predictor:
+  name: "not-configured"
+  params: {}
+
+policy:
+  name: "not-configured"
+  params: {}
+
+telemetry:
+  enabled: true
+  # null signifie toutes les mesures disponibles ; [] signifie aucune.
+  fields: null
+
+sequence:
+  length: null
+  positional_encoding: "not-configured"
+
+latent:
+  dimension: null

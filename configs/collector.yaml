@@ -1,0 +1,28 @@
+# Peut pointer hors du dépôt, par ex. 'E:\TrackmaniaDatasets'.
+data_root: "./data"
+
+# Openplanet envoie la télémétrie à son rythme. Images et actions sont
+# enregistrées indépendamment et alignées ensuite par timestamps monotones.
+telemetry:
+  transport: "not-configured"
+  expected_fields:
+    - speed
+    - steer
+    - gas
+    - brake
+    - gear
+    - rpm
+
+capture:
+  # Résolution, mode couleur et qualité JPEG restent à définir.
+  format: "jpeg"
+  interval_ms: null
+
+actions:
+  # Une action reste active jusqu'à l'envoi de la suivante.
+  hold_until_next: true
+  control_transport: "not-configured"
+
+sync:
+  method: "nearest_telemetry"
+  tolerance_ms: 50

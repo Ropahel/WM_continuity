@@ -1,0 +1,19 @@
+experiment_name: "baseline"
+output_root: "./runs"
+seed: 0
+
+dataset:
+  # Référence la racine ou le manifeste du dataset lorsque le lecteur existera.
+  root: "./data"
+  split_manifest: null
+
+training:
+  stage: "world_model"
+  device: "cpu"
+  epochs: null
+  batch_size: null
+  learning_rate: null
+
+losses:
+  # Les termes et poids seront ajoutés avec la première baseline du WM.
+  terms: {}
