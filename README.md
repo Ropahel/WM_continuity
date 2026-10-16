@@ -149,17 +149,34 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 ```
 
-PyTorch est installé séparément pour sélectionner explicitement les roues CPU
-et éviter une installation CUDA :
+Cette installation ajoute les bibliothèques prévues pour le projet :
+PyTorch n'est pas installé par la commande précédente, car sa source CPU doit
+être sélectionnée explicitement. Installer ensuite sa roue CPU :
 
 ```powershell
 python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
 ```
 
-L'envoi des actions et la réception Openplanet dépendent du protocole retenu
-pour le plugin et le contrôleur. Le paquet Python `vgamepad` peut être évalué
-pour le contrôle par manette virtuelle ; il nécessite également un pilote
-compatible installé sur Windows. Ce choix n'est pas encore implémenté.
+`opencv-python-headless` fournit les opérations d'image sans dépendance à
+l'interface graphique d'OpenCV ; `Pillow` et `mss` servent aux images et aux
+captures. `PyArrow` gère les tables Parquet, `NumPy` les tableaux, `PyYAML` les
+configurations, `TensorBoard` le suivi des métriques, `pytest` les tests,
+`Ruff` les vérifications de code et `vgamepad` l'envoi potentiel des commandes
+par manette virtuelle.
+
+Sur Windows, `vgamepad` nécessite aussi l'installation d'un pilote de manette
+virtuelle compatible (ViGEmBus). Installer le paquet Python ne suffit pas à
+faire fonctionner le contrôle en jeu. Le protocole Openplanet et le contrôle
+ne sont pas encore implémentés.
+
+Pour vérifier l'installation CPU de PyTorch :
+
+```powershell
+python -c "import torch; print(torch.__version__); print('CUDA disponible :', torch.cuda.is_available())"
+```
+
+La dernière ligne doit afficher `CUDA disponible : False` pour cette
+installation.
 
 ## Vérifications
 

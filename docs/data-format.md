@@ -80,7 +80,7 @@ pas nécessairement l'instant exact où le jeu a échantillonné la mesure.
 Une ligne par tentative de capture :
 
 | Champ | Type | Signification |
-|---|---|---|
+| --- | --- | --- |
 | `run_id` | string | UUID du run parent |
 | `frame_idx` | int64 | Index local d'image croissant |
 | `t_capture_ns` | int64 | Horodatage monotone local de capture |
@@ -100,7 +100,7 @@ Une ligne par mesure reçue du plugin, sans rééchantillonnage à la fréquence
 des images :
 
 | Champ | Type | Signification |
-|---|---|---|
+| --- | --- | --- |
 | `run_id` | string | UUID du run parent |
 | `telemetry_idx` | int64 | Index local de mesure croissant |
 | `t_receive_ns` | int64 | Horodatage monotone local de réception |
@@ -123,7 +123,7 @@ envoyées par le collecteur.
 Une ligne par mise à jour de commande envoyée par le collecteur :
 
 | Champ | Type | Signification |
-|---|---|---|
+| --- | --- | --- |
 | `run_id` | string | UUID du run parent |
 | `action_idx` | int64 | Index local de commande croissant |
 | `t_issue_ns` | int64 | Heure monotone locale d'émission |

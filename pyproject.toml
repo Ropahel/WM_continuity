@@ -11,9 +11,12 @@ requires-python = ">=3.11"
 dependencies = [
     "mss>=9.0",
     "numpy>=1.26",
+    "opencv-python-headless>=4.10",
     "Pillow>=10.0",
     "pyarrow>=17.0",
     "PyYAML>=6.0",
+    "tensorboard>=2.17",
+    "vgamepad>=0.1.0",
 ]
 
 [project.optional-dependencies]
