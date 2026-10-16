@@ -1,5 +1,9 @@
 # WM Continuity
 
+## Idée
+
+On peut repérer quand on reset la run en demandant à l'utilisateur de presser une touche/faire une commande lorsqu'il est à la position de base(le strart) de la map. Comme ça à chaque fois qu'on y revient avec speed = 0, cela voudra dire qu'on a reset. C'est une options si Openplanet n'est pas capable de nous dire quand on reset et si on ne peut pas se baser sur les touches appuyé par le joueur.
+
 Projet expérimental pour entraîner un World Model (WM) jouant à Trackmania 2020.
 Le modèle apprend une dynamique dans un espace latent : l'encodeur transforme
 une séquence passée d'images et de télémétrie en embedding, puis le prédicteur
@@ -102,6 +106,7 @@ Chaque run possède son propre répertoire et ses propres fichiers :
     │   ├── frames.parquet
     │   ├── telemetry.parquet
     │   ├── actions.parquet
+    │   ├── latents.parquet    # optionnel, seulement si demandé
     │   └── frames/
     │       ├── 000000.jpg
     │       └── ...
@@ -115,6 +120,8 @@ Chaque run possède son propre répertoire et ses propres fichiers :
   brake, gear et RPM lorsqu'ils sont fournis par le plugin.
 - `actions.parquet` contient chaque commande émise. Une commande est considérée
   maintenue jusqu'à la suivante.
+- `latents.parquet` n'est créé que si l'utilisateur demande explicitement
+  l'enregistrement des embeddings ; la capture est limitée à un run.
 - `run.json` et `session.json` décrivent le contexte, la configuration, les
   unités et l'état de l'enregistrement.
 
@@ -147,11 +154,41 @@ sont décrites dans [docs/checkpoints.md](./docs/checkpoints.md).
 
 Le collecteur utilisera un état de run explicite et hybride : commandes
 utilisateur au départ, puis événements Openplanet lorsqu'ils auront été
-validés. La valeur `ViewingPlayerState() is null` pourra indiquer
-`NOT_IN_MAP`, mais ne renseigne pas à elle seule sur l'arrivée ou le reset. Le
+validés. Un message frais avec `ViewingPlayerState() is null` confirme
+`NOT_IN_MAP`, mais une valeur non nulle ne renseigne pas à elle seule sur le
+départ, la conduite, l'arrivée ou le reset. L'absence de message indique un
+problème de communication ou un état inconnu, pas `NOT_IN_MAP`. Le
 contrôleur du modèle ne sera autorisé qu'en état `RUNNING` confirmé avec des
 mesures fraîches ; un état inconnu ou une perte de télémétrie désactive ses
 actions.
+
+### Commandes pendant l'exécution
+
+Une interface terminal interactive est tout à fait réalisable tant que le
+collecteur tourne, mais elle doit être conçue pour ne pas bloquer la boucle qui
+reçoit la télémétrie, capture les images et calcule les actions. Le lecteur du
+terminal lira les commandes en parallèle et les transmettra à la boucle
+principale par une file de messages. Les opérations qui touchent au modèle ou
+aux fichiers — notamment `save_model` et le démarrage de l'enregistrement des
+latents — seront exécutées par cette boucle à un point sûr, et non directement
+depuis le thread clavier.
+
+Commandes prévues :
+
+- `record_latents next_run` : armer une capture de latents pour un run complet,
+  du début confirmé à sa fin/reset/abandon ;
+- `record_latents current_run` : commencer immédiatement si un run est déjà
+  actif, en indiquant dans les métadonnées que la capture est partielle ;
+- `stop_latent_recording` : arrêter avant la fin du run ;
+- `save_model` : sauvegarder manuellement une version nommée du modèle courant.
+
+Des raccourcis clavier sont également possibles. Pour le premier jalon, il est
+plus fiable de commencer par les commandes textuelles dans le terminal. Des
+hotkeys peuvent ensuite appeler les mêmes commandes du répartiteur, mais
+nécessitent une gestion des répétitions de touches, des conflits avec le jeu,
+du focus de fenêtre et éventuellement des permissions si elles sont globales
+à Windows. Un raccourci ne doit jamais contourner les contrôles d'état du run
+ni la neutralisation de sécurité.
 
 ## Installation (Windows, CPU)
 
@@ -217,8 +254,6 @@ métadonnées, pas codées en dur dans les données brutes.
 
 ### 1. Cartographier les informations accessibles avec Openplanet
 
-**À faire**
-
 - Tester dans les différents contextes de jeu la valeur de
   `VehicleState::ViewingPlayerState()` : menu, chargement, map avant départ,
   voiture en mouvement, arrivée, écran de résultat et après reset.
@@ -247,8 +282,6 @@ existant.
 
 ### 2. Définir puis tester le protocole plugin ↔ Python
 
-**À faire**
-
 - Choisir et documenter le transport local (le plugin actuel essaie une
   connexion TCP vers `127.0.0.1:9000`) et le format des messages.
 - Définir des messages séparés ou identifiables pour télémétrie, état du jeu,
@@ -271,8 +304,6 @@ enregistrements analysables après coup.
 messages valides horodatés localement et qui détecte une perte de connexion.
 
 ### 3. Implémenter le contrôleur d'état et les transitions de run
-
-**À faire**
 
 - Maintenir les états côté Python : `UNKNOWN`, `NOT_IN_MAP`, `READY`,
   `RUNNING`, `RESETTING`, `FINISHED` et `ABORTED`.
@@ -300,8 +331,6 @@ passé sans deviner à partir de la vitesse.
 
 ### 4. Terminer la première tranche de collecte de données
 
-**À faire**
-
 - Implémenter une session avec plusieurs dossiers de runs et une racine de
   stockage configurable hors du dépôt.
 - Capturer les images en fichiers JPEG et enregistrer les chemins relatifs,
@@ -326,8 +355,6 @@ télémétrie, commandes et événements conservés séparément conformément �
 
 ### 5. Mesurer la qualité de collecte avant d'entraîner
 
-**À faire**
-
 - Enregistrer plusieurs runs couvrant départ, conduite normale, arrêt,
   arrivée, reset, abandon et, si possible, perte de connexion.
 - Vérifier que les timestamps monotones avancent dans chaque flux, que les
@@ -348,8 +375,6 @@ l'entraînement échoue explicitement.
 qu'un dataset peut être relu et aligné de manière reproductible.
 
 ### 6. Construire le lecteur et les fenêtres causales
-
-**À faire**
 
 - Lire les tables Arrow et les images à partir d'un dossier de run ou d'un
   manifeste de dataset.
@@ -372,8 +397,6 @@ artificiellement bons et invaliderait les comparaisons d'architectures.
 utilisables par plusieurs modèles expérimentaux.
 
 ### 7. Établir une baseline de World Model
-
-**À faire**
 
 - Définir les interfaces minimales des sous-modèles et leur registre de
   variantes, puis sélectionner chaque architecture par configuration.
@@ -398,8 +421,6 @@ d'ajouter des termes expérimentaux.
 
 ### 8. Mettre en place les checkpoints avant les longues expériences
 
-**À faire**
-
 - Implémenter la sauvegarde périodique de reprise (poids, état d'optimiseur,
   compteurs et configuration), à une cadence mesurée en étapes et configurable.
 - Sauvegarder de façon atomique, tester une reprise après arrêt et choisir une
@@ -420,9 +441,33 @@ combinaison de sous-modèles a produit un résultat.
 **Résultat attendu :** reprise vérifiée après interruption et bibliothèque de
 modèles nommés, décrite dans [docs/checkpoints.md](./docs/checkpoints.md).
 
-### 9. Comparer les architectures et les losses de façon contrôlée
+### 9. Ajouter l'enregistrement facultatif des états latents
 
-**À faire**
+- Implémenter les commandes `record_latents next_run`,
+  `record_latents current_run` et `stop_latent_recording`.
+- Ne rien écrire par défaut ; quand l'option est armée, enregistrer un run au
+  maximum puis arrêter automatiquement au reset, à la fin ou à l'abandon.
+- Écrire les vecteurs dans `latents.parquet` avec horodatage monotone, index,
+  pas de modèle, provenance (`encoder` ou `predictor`) et identifiants exacts du
+  bundle/checkpoint.
+- Enregistrer dans les métadonnées les dimensions et l'ordre des coordonnées,
+  la cadence, ainsi que les bornes (complètes ou partielles) de la capture.
+- Tester que l'activation/désactivation terminale est traitée à un point sûr
+  de la boucle et ne bloque ni la télémétrie, ni l'inférence, ni le contrôle.
+- Comparer une trace latente à ses images, à la télémétrie et aux actions
+  enregistrées, en séparant les embeddings recalibrés par l'encodeur des
+  embeddings prédits par le WM.
+
+**Pourquoi c'est important :** les vecteurs latents sont le résultat direct
+des expériences d'architecture et de loss. Les conserver sur demande permet de
+les analyser après le run sans imposer le volume de stockage et le coût
+d'écriture à chaque partie.
+
+**Résultat attendu :** une trace latente facultative, alignable et
+reproductible, produite pour un seul run par commande et reliée au modèle
+exact qui l'a générée.
+
+### 10. Comparer les architectures et les losses de façon contrôlée
 
 - Modifier un facteur à la fois : architecture d'encodeur, prédicteur,
   encodage temporel/positionnel, loss ou sélection de télémétrie.
@@ -439,9 +484,7 @@ la loss ne permet pas d'attribuer une amélioration à une cause précise.
 **Résultat attendu :** un tableau de comparaison permettant de retenir des
 variantes sur des critères définis plutôt qu'une impression qualitative.
 
-### 10. Entraîner d'abord une policy par imitation
-
-**À faire**
+### 11. Entraîner d'abord une policy par imitation
 
 - Confirmer quelles actions peuvent servir de labels : commandes manuelles
   réellement lues ou commandes manuelles envoyées via le contrôleur.
@@ -457,9 +500,7 @@ en ligne.
 **Résultat attendu :** une policy candidate avec des métriques reproductibles,
 qui n'est pas encore autorisée à contrôler le jeu sans garde-fous.
 
-### 11. Tester la conduite en jeu de manière progressive
-
-**À faire**
+### 12. Tester la conduite en jeu de manière progressive
 
 - Commencer par observation seule (policy calculée mais commandes non
   appliquées), puis faire des essais courts à vitesse réduite ou dans un
@@ -478,7 +519,7 @@ progressivement et pouvoir être interrompu.
 **Résultat attendu :** des runs d'évaluation réplicables et une procédure
 d'arrêt sûre avant de lancer des expériences autonomes longues.
 
-### 12. Optimiser le stockage et le débit ensuite
+### 13. Optimiser le stockage et le débit ensuite
 
 Garder pour le début un fichier JPEG par image et le stockage Parquet par run.
 Mesurer d'abord la taille des données, le débit d'écriture et le temps de

@@ -12,6 +12,7 @@ telemetry:
     - brake
     - gear
     - rpm
+    - position
 
 capture:
   # Résolution, mode couleur et qualité JPEG restent à définir.
@@ -26,3 +27,10 @@ actions:
 sync:
   method: "nearest_telemetry"
   tolerance_ms: 50
+
+latent_recording:
+  # Aucun embedding n'est enregistré sans demande explicite de l'utilisateur.
+  enabled_by_default: false
+  command: "record_latents"
+  scope: "next_run"
+  every_model_step: 1

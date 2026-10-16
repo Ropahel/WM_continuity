@@ -50,6 +50,7 @@ alignement reposent sur des horodatages monotones locaux.
     │   ├── frames.parquet
     │   ├── telemetry.parquet
     │   ├── actions.parquet
+    │   ├── latents.parquet    # optionnel, uniquement sur demande
     │   └── frames/
     │       ├── 000000.jpg
     │       └── ...
@@ -81,8 +82,13 @@ Les transitions d'état et les commandes de cycle de vie sont enregistrées dans
 L'état représente ce que le collecteur sait et autorise, pas une preuve que la
 voiture bouge réellement.
 Valeurs prévues : `UNKNOWN` (état non confirmé, plugin déconnecté ou mesures
-périmées), `READY` (jeu connecté et voiture prête, aucun run actif), `RUNNING`,
-`RESETTING`, `FINISHED` et `ABORTED`. Chaque transition conserve son origine :
+périmées), `NOT_IN_MAP` (le plugin a explicitement signalé que
+`ViewingPlayerState()` est nul), `READY` (jeu connecté et voiture prête, aucun
+run actif), `RUNNING`, `RESETTING`, `FINISHED` et `ABORTED`. Une valeur nulle
+confirme que la voiture n'est pas dans une map ; une valeur non nulle ne
+détermine pas si elle attend le départ, roule ou a terminé. Il faut distinguer
+un message explicite `NOT_IN_MAP` d'une absence de messages ou d'un heartbeat
+périmé, qui signifie `UNKNOWN`. Chaque transition conserve son origine :
 `user`, `plugin` ou `timeout`.
 
 Au premier jalon, l'utilisateur confirme explicitement le début, la fin, le
@@ -91,7 +97,7 @@ contrôle qu'après vérification de sa fiabilité. Un reset ferme le run couran
 après confirmation que la voiture est prête, un nouveau run commence avec un
 nouvel identifiant. Une perte de connexion ou des mesures périmées font passer
 l'état à `UNKNOWN` et ne doivent pas être interprétées automatiquement comme
-une arrivée ou un reset.
+une arrivée, un reset ou `NOT_IN_MAP`.
 
 Le collecteur n'autorise les sorties de la policy qu'en état `RUNNING` avec
 une télémétrie fraîche. Dans les autres états il désactive l'émission d'actions
@@ -175,18 +181,66 @@ les cibles d'imitation des commandes réellement produites par la policy. Si la
 lecture des entrées physiques n'est pas disponible, enregistrer au minimum
 les actions envoyées par le collecteur avec leur `source`.
 
+### `latents.parquet` (optionnel)
+
+Les vecteurs latents ne sont **pas enregistrés par défaut**. La commande
+`record_latents next_run` arme la capture pour le prochain run : elle commence
+à l'événement `run_started` et s'arrête à la fin, au reset ou à l'abandon de ce
+run. Elle ne continue pas sur le run suivant. Si le programme est déjà dans un
+run, `record_latents current_run` commence immédiatement ; ce fichier
+représente alors seulement le reste de ce run. La commande
+`stop_latent_recording` arrête la capture avant la fin si nécessaire.
+
+Ne créer le fichier que lorsque la capture commence. Une capture armée et ses
+bornes réelles sont consignées dans le journal d'événements de session. Le
+nombre de runs capturés par commande est limité à un ; pour enregistrer un
+autre run, l'utilisateur doit l'armer de nouveau.
+
+Une ligne correspond à un embedding produit par le modèle, à la cadence
+configurée (par défaut chaque pas de modèle) :
+
+| Champ | Type | Signification |
+| --- | --- | --- |
+| `run_id` | string | UUID du run capturé |
+| `latent_idx` | int64 | Index croissant de l'embedding enregistré |
+| `t_latent_ns` | int64 | Horodatage monotone local de production |
+| `model_step` | int64 nullable | Pas de prédiction ou d'inférence si disponible |
+| `latent` | list\<float32\> | Valeurs ordonnées du vecteur latent |
+| `latent_source` | string | `encoder` (recalibrage depuis observation) ou `predictor` |
+| `model_bundle_id` | string | Identifiant du WM qui a produit l'embedding |
+| `checkpoint_id` | string | Checkpoint exact utilisé pendant la capture |
+
+Le vecteur est stocké comme une liste Arrow, pas comme colonnes séparées
+`z_0`, `z_1`, etc. Sa dimension et l'ordre de ses coordonnées sont décrits dans
+les métadonnées du run et du bundle de modèle. Une capture ne mélange pas
+plusieurs checkpoints : si le modèle chargé change, fermer la capture avant le
+changement ou démarrer un nouveau segment identifié par le nouveau bundle.
+
+`latent_source` distingue les latents recalculés par l'encodeur à partir des
+observations de ceux propagés par le prédicteur. Les timestamps et, si
+disponibles, les pas de modèle permettent de les aligner aux images, mesures et
+actions. Les latents calculés hors ligne ultérieurement doivent avoir une
+provenance distincte ; ils ne doivent pas être présentés comme ayant été
+enregistrés en direct.
+
+La commande du terminal transmet une requête au collecteur ; elle ne doit pas
+modifier directement le modèle depuis le thread de lecture clavier. La boucle
+de capture/modèle traite cette requête à un point cohérent du cycle de vie, ce
+qui garantit un début/arrêt reproductible et évite les accès concurrents aux
+poids.
+
 ### `events.parquet`
 
 Une ligne par transition d'état de run ou commande de cycle de vie pour toute
 la session, pas une ligne par image :
 
 | Champ | Type | Signification |
-|---|---|---|
+| --- | --- | --- |
 | `run_id` | string nullable | UUID du run concerné ; nul avant son démarrage |
 | `event_idx` | int64 | Index local d'événement croissant |
 | `t_event_ns` | int64 | Horodatage monotone local de l'événement |
-| `event_type` | string | Par exemple `run_started`, `run_finished`, `reset_requested`, `reset_completed`, `run_aborted`, `state_unknown` |
-| `state` | string | État après transition : `UNKNOWN`, `READY`, `RUNNING`, `RESETTING`, `FINISHED` ou `ABORTED` |
+| `event_type` | string | Par exemple `run_started`, `run_finished`, `reset_requested`, `reset_completed`, `run_aborted`, `state_unknown`, `latent_recording_armed`, `latent_recording_started`, `latent_recording_stopped` |
+| `state` | string | État après transition : `UNKNOWN`, `NOT_IN_MAP`, `READY`, `RUNNING`, `RESETTING`, `FINISHED` ou `ABORTED` |
 | `source` | string | `user`, `plugin` ou `timeout` |
 | `details_json` | nullable string | Détails optionnels sérialisés en JSON |
 
