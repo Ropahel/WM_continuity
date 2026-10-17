@@ -254,6 +254,9 @@ métadonnées, pas codées en dur dans les données brutes.
 
 ### 1. Cartographier les informations accessibles avec Openplanet
 
+ICI: uniquement sur TM. Pas de python.
+
+- Installer Openplanet et mettre le plugin actuel dans le jeu.
 - Tester dans les différents contextes de jeu la valeur de
   `VehicleState::ViewingPlayerState()` : menu, chargement, map avant départ,
   voiture en mouvement, arrivée, écran de résultat et après reset.
@@ -262,12 +265,10 @@ métadonnées, pas codées en dur dans les données brutes.
   nul ; ne pas conclure automatiquement qu'un run est en cours.
 - Chercher dans les APIs Openplanet/Trackmania si elles exposent des événements
   de départ, d'arrivée, de fin de map et de reset, ainsi que les commandes
-  physiques de manette réellement lues par le jeu.
+  physiques de manette réellement lues par le jeu. -> modifier le plugin en conséquence et choisir les modalités de décisions.
 - Vérifier les unités, la fréquence et les conditions d'indisponibilité des
   mesures déjà récupérées : vitesse, RPM, gear, position, et celles restant à
   ajouter (steer, gas, brake).
-- Noter les faits observés, les limites et les incertitudes dans la
-  documentation du plugin.
 
 **Pourquoi c'est important :** le collecteur doit distinguer « hors map »,
 « en map mais à l'arrêt », « en conduite » et « terminé » sans inventer un
@@ -276,11 +277,11 @@ cibles si la première policy est entraînée par imitation.
 
 **Résultat attendu :** une liste vérifiée des signaux et événements
 disponibles, et une liste explicite de ce qui nécessitera encore une commande
-manuelle. Il n'est pas nécessaire de maîtriser AngelScript avant cette
-investigation ; les essais peuvent être faits progressivement dans le plugin
-existant.
+manuelle.
 
 ### 2. Définir puis tester le protocole plugin ↔ Python
+
+En gros: faire le code python qui fera la communication avec le plugin. En ajoutant tous les test necessaires, les sécurités etc...
 
 - Choisir et documenter le transport local (le plugin actuel essaie une
   connexion TCP vers `127.0.0.1:9000`) et le format des messages.

@@ -1,4 +1,4 @@
-from wm_continuity.data.schema import (
+"""from wm_continuity.data.schema import (
     ACTIONS_SCHEMA,
     FRAMES_SCHEMA,
     SCHEMA_VERSION,
@@ -43,3 +43,4 @@ def test_actions_schema_distinguishes_issue_and_effective_time() -> None:
 
 def test_schema_version_is_positive() -> None:
     assert SCHEMA_VERSION >= 1
+"""

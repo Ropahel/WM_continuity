@@ -1,5 +1,5 @@
 # Peut pointer hors du dépôt, par ex. 'E:\TrackmaniaDatasets'.
-data_root: "./data"
+data_root: ""
 
 # Openplanet envoie la télémétrie à son rythme. Images et actions sont
 # enregistrées indépendamment et alignées ensuite par timestamps monotones.
