@@ -27,6 +27,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["wm_continuity*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
