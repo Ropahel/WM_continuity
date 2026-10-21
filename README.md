@@ -51,34 +51,37 @@ WM_continuity/
 │   ├── Main.as                  # Plugin Openplanet (télémétrie initiale)
 │   └── info.toml                # Métadonnées du plugin
 ├── src/
-│   ├── __init__.py
-│   ├── config.py            # Chargement/validation des configurations
-│   ├── cli.py               # Points d'entrée en ligne de commande
-│   ├── game_io/
-│   │   ├── telemetry.py     # Réception des mesures du plugin
-│   │   ├── capture.py       # Capture et sauvegarde des images
-│   │   ├── controller.py    # Envoi des actions au jeu
-│   │   └── run_control.py   # Début, fin, reset et interruption de run
-│   ├── data/
-│   │   ├── schema.py        # Schémas Arrow des flux bruts
-│   │   ├── recorder.py      # Écriture des fichiers d'un run
-│   │   ├── reader.py        # Lecture des données brutes
-│   │   └── windows.py       # Alignement et fenêtres temporelles
-│   ├── models/
-│   │   ├── registry.py      # Enregistrement/résolution des variantes
-│   │   ├── encoders/        # Encodeurs image + télémétrie séquentielle
-│   │   ├── predictors/      # Prédicteurs d'embeddings latents
-│   │   └── policies/        # Politiques d'action à partir de z(t)
-│   ├── losses/              # Termes de loss composables
-│   ├── training/
-│   │   ├── wm.py            # Entraînement conjoint encodeur/prédicteur
-│   │   ├── policy.py        # Imitation ou optimisation évolutionnaire
-│   │   └── checkpoints.py   # Sauvegarde et reprise des expériences
-│   └── evaluation/
-│       ├── world_model.py   # Évaluation de la dynamique latente
-│       └── driving.py       # Évaluation en jeu
+│   └── wm_continuity/
+│       ├── __init__.py
+│       ├── config.py             # Chargement/validation des configurations
+│       ├── cli.py                # Commandes terminal
+│       ├── game_io/
+│       │   ├── telemetry.py      # Réception des mesures du plugin
+│       │   ├── capture.py        # Capture et sauvegarde des images
+│       │   ├── controller.py     # Envoi des actions au jeu
+│       │   └── run_control.py    # Cycle de vie des runs
+│       ├── data/
+│       │   ├── schema.py         # Schémas Arrow des flux bruts
+│       │   ├── recorder.py       # Écriture des données d'un run
+│       │   ├── reader.py         # Lecture des runs
+│       │   └── windows.py        # Alignement et fenêtres temporelles
+│       ├── models/
+│       │   ├── registry.py       # Registre des variantes
+│       │   ├── world_model.py    # Assemblage encodeur + prédicteur
+│       │   ├── encoders/         # Encodeurs image/télémétrie/temps
+│       │   ├── predictors/       # Prédicteurs latents
+│       │   └── policies/         # Politiques d'action
+│       ├── losses/               # Termes de loss composables
+│       ├── training/
+│       │   ├── wm.py             # Entraînement conjoint du WM
+│       │   ├── policy.py         # Entraînement de la policy
+│       │   └── checkpoints.py    # Sauvegarde et reprise
+│       └── evaluation/
+│           ├── world_model.py    # Évaluation de la dynamique latente
+│           └── driving.py        # Évaluation en jeu
 ├── tests/
-│   └── test_data_schema.py      # Tests du contrat des tables Arrow
+│   ├── unit/                     # Tests rapides sans jeu
+│   └── integration/              # Tests du protocole et collecte
 ├── runs/                        # Résultats d'expériences, ignorés par Git
 ├── pyproject.toml
 └── .gitignore
@@ -246,11 +249,43 @@ ruff check .
 
 ## Feuille de route détaillée
 
-Les étapes ci-dessous sont ordonnées pour réduire les risques : valider d'abord
-ce que le jeu expose, puis fiabiliser la collecte et les données, avant de
-consacrer du temps au WM et à la policy. Les décisions qui restent
-expérimentales doivent être enregistrées dans les configurations et les
-métadonnées, pas codées en dur dans les données brutes.
+Cette feuille de route est un guide d'implémentation : chaque phase liste les
+fichiers à créer ou compléter et des critères de validation. Ne passe à la
+phase suivante que lorsque les critères de sortie de la phase courante sont
+atteints. Les modules actuellement présents sous `src/` sont des squelettes ;
+la première étape Python les replacera dans le paquet `src/wm_continuity/`
+annoncé par le projet et les tests. Les décisions expérimentales doivent être
+portées par les configurations et métadonnées, pas codées en dur dans les
+données brutes.
+
+### 0. Vérifier le paquet Python et les tests --- DONE
+
+**Fichiers concernés :** `pyproject.toml`, `src/`, `tests/`.
+
+La structure du paquet et les tests initiaux ont été remis en cohérence :
+le code réside maintenant sous `src/wm_continuity/`, et le test du schéma est
+un fichier Python exécutable sous `tests/unit/`.
+
+1. Depuis l'environnement virtuel du projet, réinstaller en mode éditable avec
+   `python -m pip install -e ".[dev]"`.
+2. Vérifier que `python -c "import wm_continuity; print(wm_continuity.__file__)"`
+   pointe vers le paquet du dépôt et que
+   `python -c "from wm_continuity.data.schema import FRAMES_SCHEMA"` réussit.
+3. Lancer `python -m pytest -v` et confirmer que les cinq tests de schéma sont
+   collectés et passent ; zéro test collecté n'est pas un succès.
+4. Lancer `ruff check .` depuis la racine et corriger les diagnostics introduits
+   par le code du projet, sans modifier les données ou fichiers générés.
+5. Garder les tests unitaires sous `tests/unit/` et les tests dépendant de
+   plusieurs composants sous `tests/integration/`. Les tests unitaires ne
+   doivent pas nécessiter Trackmania ni Openplanet.
+
+**Pourquoi c'est important :** tant que le paquet n'est pas importable de
+manière cohérente et que les tests ne sont pas réellement exécutés, les phases
+suivantes ne pourront pas être validées de façon fiable.
+
+**Critère de sortie :** installation éditable réussie, import depuis le
+répertoire `src/wm_continuity/`, cinq tests de schéma détectés et réussis, et
+Ruff sans erreur.
 
 ### 1. Cartographier les informations accessibles avec Openplanet
 
@@ -279,9 +314,14 @@ cibles si la première policy est entraînée par imitation.
 disponibles, et une liste explicite de ce qui nécessitera encore une commande
 manuelle.
 
-### 2. Définir puis tester le protocole plugin ↔ Python
+**À noter pendant les essais :** pour chaque scénario, consigner si
+`ViewingPlayerState()` est nul ou non, quelles valeurs de télémétrie sont
+disponibles, quelles commandes physiques sont visibles et quel événement
+Openplanet permet d'observer. Ne pas utiliser une valeur non nulle comme preuve
+que la voiture roule. Garder les conclusions AngelScript/Openplanet dans le
+plugin ou la documentation, sans commencer la collecte Python dans cette phase.
 
-En gros: faire le code python qui fera la communication avec le plugin. En ajoutant tous les test necessaires, les sécurités etc...
+### 2. Définir puis tester le protocole plugin ↔ Python
 
 - Choisir et documenter le transport local (le plugin actuel essaie une
   connexion TCP vers `127.0.0.1:9000`) et le format des messages.
@@ -303,6 +343,30 @@ enregistrements analysables après coup.
 
 **Résultat attendu :** un petit test d'intégration qui affiche côté Python des
 messages valides horodatés localement et qui détecte une perte de connexion.
+
+**Fichiers Python à créer ou compléter :**
+
+- `src/wm_continuity/game_io/protocol.py` : types de messages, version du
+  protocole, validation des champs et conversion en objets Python typés.
+- `src/wm_continuity/game_io/telemetry.py` : serveur TCP local, lecture des
+  lignes/messages complets, timestamp monotone à réception et émission des
+  événements vers le reste du programme.
+- `src/wm_continuity/cli.py` : première commande `listen`, qui démarre le
+  serveur et affiche un résumé des messages reçus.
+- `tests/unit/test_protocol.py` : messages valides, champs manquants, mauvais
+  types, version inconnue et valeurs hors plages documentées.
+- `tests/integration/test_telemetry_server.py` : connexion locale simulée,
+  plusieurs messages, fermeture du client, reconnexion et timeout.
+
+Implémenter d'abord le parseur pur (entrée JSON → message validé), puis le
+serveur TCP. Ne pas inclure l'écriture Parquet ni les captures dans ce premier
+test : il doit isoler la communication. Le serveur doit signaler explicitement
+les erreurs de protocole et les pertes de connexion ; il ne doit pas transformer
+un message invalide en mesure nulle ou valide.
+
+**Critère de sortie :** avec un producteur simulé, Python reçoit et horodate
+les messages attendus ; il différencie `NOT_IN_MAP` d'un timeout, refuse les
+messages invalides et se reconnecte après une fermeture contrôlée.
 
 ### 3. Implémenter le contrôleur d'état et les transitions de run
 
@@ -330,6 +394,26 @@ envoyer des actions au mauvais moment.
 connexion) et un journal d'événements permettant de reconstruire ce qui s'est
 passé sans deviner à partir de la vitesse.
 
+**Fichiers à créer ou compléter :**
+
+- `src/wm_continuity/game_io/run_control.py` : énumération d'états, commandes
+  utilisateur et règles de transition dans une classe sans dépendance directe
+  à Openplanet.
+- `tests/unit/test_run_control.py` : une séquence de tests par transition
+  autorisée/interdite, dont démarrage, fin, reset, abandon, état inconnu,
+  `NOT_IN_MAP` et retour après reconnexion.
+- `src/wm_continuity/cli.py` : commandes textuelles temporaires telles que
+  `start_run`, `finish_run`, `reset_run`, `abort_run` et `status`.
+
+Tester d'abord les transitions avec des messages synthétiques avant de les
+relier au serveur. Chaque commande invalide selon l'état courant doit être
+refusée avec une explication ; elle ne doit pas démarrer ou fermer un run en
+silence.
+
+**Critère de sortie :** tests de transitions verts et aucune transition vers
+`RUNNING` à partir de la seule présence d'un véhicule ; en mode autonome,
+aucune action n'est envoyée lorsque l'état est autre que `RUNNING`.
+
 ### 4. Terminer la première tranche de collecte de données
 
 - Implémenter une session avec plusieurs dossiers de runs et une racine de
@@ -354,6 +438,32 @@ de changer plus tard la synchronisation sans refaire la collecte.
 télémétrie, commandes et événements conservés séparément conformément à
 [docs/data-format.md](./docs/data-format.md).
 
+**Ordre d'implémentation conseillé :**
+
+1. Compléter `src/wm_continuity/data/schema.py` avec les schémas Arrow
+   versionnés des événements de session, frames, télémétrie et actions.
+2. Implémenter `src/wm_continuity/data/recorder.py` : création de session/run,
+   métadonnées JSON, `ParquetWriter` par flux, écriture par lots et fermeture
+   idempotente.
+3. Compléter `src/wm_continuity/game_io/capture.py` pour produire une image et
+   un événement de frame avec un timestamp monotone ; garder d'abord la
+   résolution configurable, sans prétraitement d'entraînement.
+4. Relier le serveur télémétrique à l'enregistreur et ajouter la capture
+   indépendante à sa cadence configurée.
+5. Compléter `src/wm_continuity/game_io/controller.py` et enregistrer chaque
+   commande au moment de son émission ; tester d'abord en mode simulation sans
+   envoyer de commandes au jeu.
+6. Écrire des fichiers dans un répertoire temporaire de test, les fermer,
+   puis les relire avec PyArrow pour vérifier valeurs, schéma et chemins
+   d'images.
+7. Traiter les exceptions et l'arrêt normal : fermer tous les writers, écrire
+   l'état final, et marquer une terminaison inattendue comme interrompue au
+   prochain lancement.
+
+**Critère de sortie :** test d'intégration de bout en bout avec plugin simulé
+qui produit une session contenant des images, des mesures, des actions et des
+événements ; relecture réussie sans fichier ouvert ni dépendance au jeu réel.
+
 ### 5. Mesurer la qualité de collecte avant d'entraîner
 
 - Enregistrer plusieurs runs couvrant départ, conduite normale, arrêt,
@@ -374,6 +484,19 @@ l'entraînement échoue explicitement.
 
 **Résultat attendu :** un rapport de qualité par session et la confirmation
 qu'un dataset peut être relu et aligné de manière reproductible.
+
+**Fichiers à créer :** `src/wm_continuity/data/inspect.py` et
+`tests/integration/test_recording_quality.py`. Le script d'inspection prend un
+chemin de session et affiche les nombres de lignes par flux, les durées,
+fréquences estimées, deltas temporels extrêmes, taux de captures manquantes,
+taux d'alignement dans la tolérance et la présence des fichiers image. Il
+signale les anomalies avec leur chemin/index et retourne un code de sortie non
+nul si la session ne respecte pas les invariants structurels.
+
+**Critère de sortie :** passer le rapport sur plusieurs runs réels et corriger
+les défauts de collecte avant d'augmenter le dataset ; documenter la tolérance
+temporelle choisie à partir des mesures, plutôt que de garder arbitrairement
+la valeur d'exemple.
 
 ### 6. Construire le lecteur et les fenêtres causales
 
@@ -396,6 +519,30 @@ artificiellement bons et invaliderait les comparaisons d'architectures.
 
 **Résultat attendu :** des lots de données cohérents et testés, directement
 utilisables par plusieurs modèles expérimentaux.
+
+**Fichiers à créer ou compléter :**
+
+- `src/wm_continuity/data/reader.py` : ouvrir une session/run, lire les
+  colonnes nécessaires par lots et résoudre les chemins d'images.
+- `src/wm_continuity/data/windows.py` : définir un type d'exemple contenant
+  séquence image, séquence télémétrie, timestamps, actions sur l'intervalle,
+  identifiants de run et fenêtre cible.
+- `src/wm_continuity/data/dataset.py` : implémenter le Dataset PyTorch qui
+  charge une fenêtre à la demande, applique les transformations configurées
+  et renvoie des tenseurs de formes constantes.
+- `src/wm_continuity/data/splits.py` : charger/créer un manifeste de splits
+  par run avec seed, sans répartir des frames voisines entre les ensembles.
+- `tests/unit/test_windows.py` et `tests/unit/test_dataset.py` : utiliser de
+  petits Parquet et images temporaires synthétiques.
+
+Écrire les tests avant d'optimiser le chargement : le dernier index fourni à
+l'encodeur courant doit être `t`, les actions couvrent précisément l'intervalle
+jusqu'à la cible, les échantillons hors tolérance sont marqués/écartés et les
+fenêtres ne traversent jamais deux identifiants de run.
+
+**Critère de sortie :** un DataLoader produit plusieurs batches de formes
+valides, les tests causaux passent, et une même configuration relit les mêmes
+splits et transformations.
 
 ### 7. Établir une baseline de World Model
 
@@ -420,6 +567,53 @@ savoir si une nouvelle architecture ou loss apporte réellement quelque chose.
 prédiction latente et un premier modèle dont le comportement est vérifié avant
 d'ajouter des termes expérimentaux.
 
+**Détail de création du code des modèles :**
+
+1. Dans `src/wm_continuity/models/interfaces.py`, définir les contrats communs
+   et les formes des tenseurs avant de coder un réseau :
+   - images d'historique : `[batch, temps, canaux, hauteur, largeur]` ;
+   - télémétrie d'historique : `[batch, temps, caractéristiques]` ;
+   - action sur une transition : `[batch, dimensions_action]` ;
+   - embedding latent : `[batch, dimension_latente]`.
+   Les dimensions et le sens des actions sont vérifiés au bord du modèle, avec
+   des erreurs explicites en cas de mismatch.
+2. Créer des constructeurs séparés et interchangeables :
+   - `models/encoders/visual.py` transforme chaque image en features ;
+   - `models/encoders/telemetry.py` normalise/encode les champs sélectionnés,
+     avec un masque permettant de désactiver une partie ou toute la télémétrie ;
+   - `models/encoders/temporal.py` applique l'agrégation temporelle et
+     l'encodage de position/temps choisis par configuration ;
+   - `models/encoders/fusion.py` fusionne les modalités et produit `z(t)`.
+   Un premier choix simple sert uniquement de baseline ; chaque pièce doit
+   pouvoir être remplacée sans modifier le Dataset.
+3. Ajouter `models/predictors/mlp.py` comme premier prédicteur de référence :
+   il prend `z(t)` et `a(t)` et renvoie un tenseur de même dimension que le
+   latent cible. Le prédicteur ne reçoit pas directement une image.
+4. Ajouter `models/world_model.py` qui assemble les composants créés par
+   `models/registry.py`. Son API doit exposer au minimum
+   `encode(observation_history)` et `predict_next(z, action)`. La passe
+   `encode(next_observation_history)` utilisée comme cible reste explicitement
+   séparée de l'entrée courante.
+5. Ajouter les premiers termes dans
+   `src/wm_continuity/losses/latent_prediction.py`, puis
+   `losses/registry.py` pour les sélectionner et les pondérer par nom et
+   paramètres dans `configs/experiment.yaml`. Ne pas ajouter le nouveau terme
+   de recherche avant qu'une loss baseline et ses métriques soient vérifiées.
+6. Compléter `configs/model.yaml` avec les noms/paramètres réels des modules,
+   la longueur de séquence, les champs de télémétrie, la taille de l'embedding
+   et les paramètres image. La configuration doit permettre de construire au
+   moins deux variantes sans changer le code d'assemblage.
+7. Écrire `tests/unit/test_model_interfaces.py`,
+   `test_encoder_variants.py`, `test_world_model.py` et
+   `test_losses.py` avec batch synthétique sur CPU. Vérifier les dimensions,
+   device, valeurs finies, propagation des gradients, sélection vide de
+   télémétrie, construction de deux configurations, et qu'une modification
+   future n'entre pas dans `encode(observation_history)`.
+
+**Critère de sortie :** le même script construit deux variantes depuis YAML,
+les deux passent les tests de forme/gradient, et le WM produit `z_hat(t+1)`
+conditionné par l'action avec une loss finie calculable contre `z(t+1)`.
+
 ### 8. Mettre en place les checkpoints avant les longues expériences
 
 - Implémenter la sauvegarde périodique de reprise (poids, état d'optimiseur,
@@ -441,6 +635,20 @@ combinaison de sous-modèles a produit un résultat.
 
 **Résultat attendu :** reprise vérifiée après interruption et bibliothèque de
 modèles nommés, décrite dans [docs/checkpoints.md](./docs/checkpoints.md).
+
+**Fichiers à compléter :** `src/wm_continuity/training/checkpoints.py`,
+`src/wm_continuity/cli.py`, `configs/experiment.yaml` et
+`tests/unit/test_checkpoints.py`. Commencer par les fonctions Python
+`save_resume_checkpoint`, `load_resume_checkpoint` et `save_named_model` ;
+ajouter le REPL/lecteur terminal `save_model` ensuite. Tester dans un
+répertoire temporaire qu'une reprise restitue les poids, l'étape et l'état de
+l'optimiseur, que la sauvegarde manuelle crée une nouvelle version, et qu'un
+nom déjà utilisé ne soit jamais écrasé. Vérifier enfin que le manifeste d'une
+policy contient l'identifiant exact du WM associé.
+
+**Critère de sortie :** interrompre volontairement un petit entraînement
+synthétique, le reprendre et obtenir le même compteur d'étapes ; sauvegarder
+manuellement deux versions et les recharger séparément avec leur manifeste.
 
 ### 9. Ajouter l'enregistrement facultatif des états latents
 
@@ -468,6 +676,19 @@ d'écriture à chaque partie.
 reproductible, produite pour un seul run par commande et reliée au modèle
 exact qui l'a générée.
 
+**Fichiers à compléter :** `src/wm_continuity/data/schema.py`,
+`src/wm_continuity/data/latent_recorder.py`,
+`src/wm_continuity/cli.py`, `configs/collector.yaml` et
+`tests/unit/test_latent_recording.py`. Écrire les embeddings détachés du graphe
+de calcul dans une file bornée ; un writer dédié les vide par lots en Parquet.
+Tester capture armée → démarrée au début du run → arrêt automatique au reset,
+erreur visible en cas de file pleine, fermeture propre, dimension stable et
+identité du checkpoint constante pendant une capture.
+
+**Critère de sortie :** le même run sans commande ne crée aucun fichier latent ;
+un run armé crée une trace relisible avec ses bornes et identifiants, sans
+bloquer la boucle d'inférence.
+
 ### 10. Comparer les architectures et les losses de façon contrôlée
 
 - Modifier un facteur à la fois : architecture d'encodeur, prédicteur,
@@ -485,6 +706,18 @@ la loss ne permet pas d'attribuer une amélioration à une cause précise.
 **Résultat attendu :** un tableau de comparaison permettant de retenir des
 variantes sur des critères définis plutôt qu'une impression qualitative.
 
+**À implémenter :** `src/wm_continuity/evaluation/world_model.py` pour calculer
+les métriques sur le split validation sans mise à jour des poids,
+`src/wm_continuity/training/experiment.py` pour écrire la configuration
+résolue et les identifiants, et un script de comparaison lisant les métriques
+de plusieurs `experiment_id`. Définir avant les essais les métriques qui
+comptent (loss par horizon, diversité/variance des latents, résultats par run)
+et consigner le nom de l'expérience et un seul facteur modifié.
+
+**Critère de sortie :** deux expériences peuvent être comparées sur le même
+manifeste de splits ; leur config, seed, architecture et checkpoint d'origine
+sont retrouvables depuis le résultat.
+
 ### 11. Entraîner d'abord une policy par imitation
 
 - Confirmer quelles actions peuvent servir de labels : commandes manuelles
@@ -500,6 +733,18 @@ en ligne.
 
 **Résultat attendu :** une policy candidate avec des métriques reproductibles,
 qui n'est pas encore autorisée à contrôler le jeu sans garde-fous.
+
+**Fichiers à compléter :** `models/policies/`,
+`training/policy.py`, `evaluation/driving.py`, `configs/model.yaml` et
+`tests/unit/test_policy.py`. Définir les entrées attendues de la policy,
+l'activation/plage des commandes, la loss d'imitation et la correspondance
+temporelle avec les labels. Utiliser un WM fixé et identifié ; évaluer les
+erreurs steer/gas/brake sur des runs exclus de l'entraînement. Ne pas
+réentraîner le WM implicitement pendant cette première étape.
+
+**Critère de sortie :** entraînement et évaluation reproductibles sur données
+hors entraînement, chargement impossible si le checkpoint WM référencé ne
+correspond pas.
 
 ### 12. Tester la conduite en jeu de manière progressive
 
@@ -519,6 +764,18 @@ progressivement et pouvoir être interrompu.
 
 **Résultat attendu :** des runs d'évaluation réplicables et une procédure
 d'arrêt sûre avant de lancer des expériences autonomes longues.
+
+**Fichiers à compléter :** `game_io/controller.py`,
+`game_io/run_control.py`, `evaluation/driving.py` et leurs tests
+d'intégration. Implémenter d'abord un mode `dry_run` qui affiche les actions
+prédites sans les envoyer, puis un mode actif avec activation explicite,
+neutralisation au timeout/perte de connexion, arrêt d'urgence et journal des
+actions proposées/appliquées. Vérifier manuellement chaque transition d'état
+avant d'autoriser un run autonome.
+
+**Critère de sortie :** perte de plugin, état non confirmé, fin/reset ou
+commande d'arrêt neutralisent les commandes de la policy et l'événement est
+visible dans le journal.
 
 ### 13. Optimiser le stockage et le débit ensuite
 
