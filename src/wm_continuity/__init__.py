@@ -1,3 +1,3 @@
-"""Experimental latent World Models for Trackmania 2020."""
+"""Modular latent World Model experiments on lightweight simulations."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

@@ -1,28 +1,40 @@
-experiment_name: "baseline"
+experiment_name: "cube_latent_baseline"
 output_root: "./runs"
 seed: 0
 
+environment:
+  config: "./configs/environment.yaml"
+
 dataset:
-  # Référence la racine ou le manifeste du dataset lorsque le lecteur existera.
-  root: "./data"
+  root: "./data/cube"
   split_manifest: null
+  split_by: "episode"
+  train_fraction: 0.8
+  validation_fraction: 0.1
+  test_fraction: 0.1
 
 training:
   stage: "world_model"
   device: "cpu"
-  epochs: null
-  batch_size: null
-  learning_rate: null
+  epochs: 20
+  batch_size: 32
+  learning_rate: 0.001
 
 losses:
-  # Les termes et poids seront ajoutés avec la première baseline du WM.
-  terms: {}
+  terms:
+    latent_prediction:
+      name: "mse"
+      weight: 1.0
+      params: {}
 
 checkpointing:
-  # Cadence exprimée en étapes, pas en époques. À définir avec la boucle
-  # d'entraînement ; null désactive pour le moment les sauvegardes périodiques.
-  every_n_steps: null
-  keep_periodic: null
+  every_n_steps: 1000
+  keep_periodic: 3
   save_on_exit: true
   manual_command: "save_model"
   model_library_root: "./runs/model_library"
+
+latent_recording:
+  enabled_by_default: false
+  command: "record_latents"
+  scope: "next_episode"

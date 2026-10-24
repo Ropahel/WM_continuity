@@ -1,1 +1,1 @@
-"""Raw recording schemas, readers, and temporal dataset preparation."""
+"""Episode and trajectory datasets for simulation-based experiments."""

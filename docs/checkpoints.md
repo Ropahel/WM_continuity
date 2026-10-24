@@ -2,7 +2,7 @@
 
 Ce document distingue les sauvegardes qui permettent de reprendre un
 entraînement des modèles nommés que l'on souhaite conserver, comparer ou
-utiliser pour jouer. Un fichier de checkpoint n'est pas une expérience : il
+utiliser pour l'inférence. Un fichier de checkpoint n'est pas une expérience : il
 doit toujours indiquer de quelle expérience et de quelles variantes il
 provient.
 
@@ -103,7 +103,7 @@ runs/
 
 Lors d'une étape WM, `world_model.pt` regroupe encodeur et prédicteur. Lors
 d'une étape policy, l'artefact conserve la policy **et le WM exact** dont elle
-dépend (encodeur et prédicteur), pour former un modèle jouable autonome. Le
+dépend (encodeur et prédicteur), pour former un modèle d'inférence autonome. Le
 bundle peut occuper plus d'espace, mais évite qu'une policy perde sa
 dépendance si un checkpoint de travail est nettoyé ou déplacé.
 
@@ -127,8 +127,8 @@ les dimensions semblent identiques. Une expérience de transfert ou de
 remplacement du WM doit être explicite et réévaluée.
 
 Le WM et la policy peuvent avoir leurs propres variantes et versions, mais une
-version de modèle destinée au jeu est un bundle cohérent avec toutes ses
-dépendances. Les configurations et manifestes rendent les variantes
+version de modèle destinée à l'inférence est un bundle cohérent avec toutes
+ses dépendances. Les configurations et manifestes rendent les variantes
 comparables sans confondre architecture, entraînement et poids sauvegardés.
 
 ## Éléments à décider lors de l'implémentation

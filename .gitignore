@@ -14,9 +14,14 @@ dist/
 venv/
 ENV/
 
-# Données collectées et résultats volumineux
-runs/
+#Archives:
+archive/
+
+# Données collectées, caches et résultats volumineux
 datasets/
+cache/
+runs/
+tensorboard/
 checkpoints/
 *.parquet
 *.pt

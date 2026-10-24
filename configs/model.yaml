@@ -1,25 +1,29 @@
-# Les variantes restent à définir ; elles seront enregistrées et sélectionnées
-# ici une fois leurs interfaces établies.
+# Les variantes réelles seront choisies après la création des interfaces
+# modèles. Les clés sélectionnent des noms dans le registre du projet.
+observation:
+  modalities:
+    - state
+  history_length: 8
+
 encoder:
-  name: "not-configured"
-  params: {}
+  name: "state_mlp"
+  params:
+    hidden_dims: [64, 64]
+
+temporal_encoder:
+  name: "mlp"
+  params:
+    hidden_dims: [64]
 
 predictor:
-  name: "not-configured"
-  params: {}
-
-policy:
-  name: "not-configured"
-  params: {}
-
-telemetry:
-  enabled: true
-  # null signifie toutes les mesures disponibles ; [] signifie aucune.
-  fields: null
-
-sequence:
-  length: null
-  positional_encoding: "not-configured"
+  name: "mlp"
+  params:
+    hidden_dims: [64, 64]
 
 latent:
-  dimension: null
+  dimension: 32
+
+policy:
+  enabled: false
+  name: null
+  params: {}

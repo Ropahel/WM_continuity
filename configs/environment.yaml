@@ -1,0 +1,17 @@
+# CUBE désigne ici un petit environnement local à définir dans le projet,
+# pas une dépendance tierce déjà choisie ou installée.
+name: "cube"
+implementation: "local"
+task: "to_be_defined"
+
+observation:
+  modality: "state"
+  render_mode: null
+
+action:
+  type: "discrete"
+
+episode:
+  max_steps: 100
+
+seed: 0
